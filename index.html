@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTCB Card Battler</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1b4332;
+    color: #1a1a1a;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .screen {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    background: #2d6a4f;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,0.06) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(255,255,255,0.04) 0%, transparent 45%);
+  }
+  .screen.active { display: flex; }
+  h1 { margin: 0 0 8px 0; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.4); font-size: 34px; letter-spacing: 1px; }
+  h2 { color: #d8f3dc; margin: 10px 0; font-size: 20px; }
+  p { color: #e8f5e9; line-height: 1.5; max-width: 620px; text-align: center; }
+
+  /* Start screen */
+  .start-card {
+    background: rgba(255,255,255,0.92);
+    padding: 32px 40px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    max-width: 460px;
+    width: 100%;
+    text-align: center;
+  }
+  .start-card h1 { color: #1b4332; }
+  .start-card p { color: #333; margin-bottom: 24px; }
+  .field { margin: 14px 0; text-align: left; }
+  .field label { display: block; font-weight: 700; color: #1b4332; margin-bottom: 6px; font-size: 15px; }
+  .field input {
+    width: 100%; padding: 10px 12px; border: 2px solid #52b788; border-radius: 8px;
+    font-size: 16px; background: #fff;
+  }
+  .field input:focus { outline: none; border-color: #1b4332; }
+  .btn {
+    border: none; border-radius: 10px; padding: 12px 26px; font-size: 16px;
+    font-weight: 700; color: #fff; cursor: pointer; margin: 6px 4px;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.25); transition: transform 0.05s, opacity 0.15s;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: none; }
+  .btn-primary { background: #40916c; }
+  .btn-primary:hover { background: #4caf50; opacity: 0.95; }
+  .btn-secondary { background: #6c757d; }
+  .btn-secondary:hover { background: #5a6268; opacity: 0.95; }
+  .btn-outline {
+    background: transparent; color: #1b4332; border: 2px solid #1b4332;
+  }
+  .btn-outline:hover { background: #1b4332; color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Game screen layout */
+  #game-screen { padding: 6px; }
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 8px; padding: 6px 10px;
+    background: rgba(255,255,255,0.9); border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .turn-badge {
+    background: #1b4332; color: #d8f3dc; padding: 5px 14px; border-radius: 20px;
+    font-weight: 800; font-size: 15px; letter-spacing: 0.5px;
+  }
+  .phase-text { color: #1a1a1a; font-weight: 700; font-size: 14px; }
+  .plays-left {
+    background: #40916c; color: #fff; padding: 4px 12px; border-radius: 12px;
+    font-weight: 800; font-size: 14px;
+  }
+  #log {
+    flex: 0 0 110px; overflow-y: auto; padding: 8px 10px;
+    background: rgba(0,0,0,0.35); border-radius: 10px; font-size: 13px;
+    color: #d8f3dc; border: 1px solid rgba(255,255,255,0.12);
+  }
+  .log-entry { margin: 3px 0; padding-bottom: 3px; border-bottom: 1px dashed rgba(255,255,255,0.18); }
+  .log-entry.me { color: #bffccc; }
+  .log-entry.opp { color: #f8c4c4; }
+  .log-entry.sys { color: #ffeaa7; font-style: italic; }
+
+  .board { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+  .player-area {
+    background: rgba(255,255,255,0.92); border-radius: 14px; padding: 10px 12px;
+    box-shadow: inset 0 0 14px rgba(0,0,0,0.10);
+    display: flex; flex-direction: column; gap: 8px; min-height: 0;
+  }
+  .player-area.opponent { border-top: 6px solid #40916c; }
+  .player-area.you { border-bottom: 6px solid #40916c; }
+  .player-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-weight: 800; font-size: 16px; color: #1b4332;
+  }
+  .cond-counter {
+    background: #d8f3dc; color: #1b4332; padding: 3px 12px; border-radius: 20px;
+    font-weight: 900; font-size: 15px; border: 2px solid #40916c;
+  }
+  .cond-counter.danger { background: #ff6b6b; color: #fff; border-color: #c0392b; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .traits { display: flex; gap: 6px; flex-wrap: wrap; }
+  .trait-badge {
+    background: #6c5ce7; color: #fff; font-size: 12px; padding: 3px 9px; border-radius: 10px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  }
+  .slots {
+    display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 8px;
+    align-items: start;
+  }
+  .slot-group { grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 2px; border-bottom: 1px solid #e0e0e0; }
+  .slot { aspect-ratio: 1; border: 2px dashed #b7b7b7; border-radius: 10px; background: #f4f4f4; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #999; cursor: pointer; transition: all 0.15s; }
+  .slot.empty:hover { border-style: solid; border-color: #40916c; background: #e8f5e9; color: #1b4332; }
+  .slot.has-card { border-style: solid; }
+  .slot.droptarget { border-style: solid; border-color: #40916c; background: #d4edda; }
+
+  /* Cards */
+  .card {
+    width: 90px; aspect-ratio: 1 / 1.4; border-radius: 10px;
+    background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+    display: flex; flex-direction: column; align-items: center; padding: 8px 6px 6px 6px;
+    position: relative; overflow: hidden; user-select: none; cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s, z-index 0.1s;
+    border: 2px solid transparent;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.3); }
+  .card.selected { border-color: #40916c; box-shadow: 0 0 0 3px rgba(64,145,108,0.35); z-index: 5; }
+  .card.face-down {
+    background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+    color: #d8f3dc; justify-content: center; align-items: center; text-align: center;
+  }
+  .card.face-down .name { font-weight: 800; font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.5); line-height: 1.3; padding: 0 4px; }
+  .card.type-disease { border-color: #c0392b; }
+  .card.type-drug { border-color: #1b4332; }
+  .card.type-aug { border-color: #6c5ce7; }
+  .card-name { font-weight: 800; font-size: 12.5px; text-align: center; color: #1a1a1a; line-height: 1.25; margin-top: 4px; height: 44px; overflow: hidden; padding: 0 3px; }
+  .card-face-down-info { position: absolute; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; padding: 6px; text-align: center; pointer-events: none; border-radius: 10px; margin: 2px; }
+  .stats-row { margin-top: auto; font-size: 10.5px; color: #444; font-weight: 700; display: flex; gap: 6px; justify-content: center; }
+  .stat { background: #f0f0f0; padding: 2px 7px; border-radius: 8px; border: 1px solid #ccc; }
+  .doses { color: #c0392b; font-weight: 900; }
+
+  .hand {
+    display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px 0;
+    scrollbar-width: thin;
+  }
+  .hand::-webkit-scrollbar { height: 6px; }
+  .hand::-webkit-scrollbar-thumb { background: #b7b7b7; border-radius: 4px; }
+  .hand-group { display: flex; flex-direction: column; gap: 4px; }
+  .hand-label { font-size: 11.5px; font-weight: 800; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .complication-slot { grid-column: 4; }
+
+  .hint {
+    font-size: 12px; color: #555; margin-top: 6px; text-align: center;
+  }
+
+  /* Modals */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 16px; padding: 22px 26px;
+    min-width: 320px; max-width: 560px; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 15px 45px rgba(0,0,0,0.45);
+  }
+  .modal h2 { margin-top: 0; color: #1b4332; }
+  .modal .close-row { text-align: right; margin-bottom: 14px; }
+  .drug-info { line-height: 1.6; }
+  .drug-info .row { margin: 6px 0; }
+  .drug-info .label { font-weight: 800; color: #1b4332; display: inline-block; width: 150px; }
+  .drug-info .sep { color: #999; font-size: 11px; margin: 10px 0; border-top: 1px solid #e0e0e0; display: block; }
+  .drug-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+  .combine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin: 12px 0; }
+  .combine-chip {
+    border: 2px solid #40916c; border-radius: 10px; padding: 8px 10px; background: #fff;
+    cursor: pointer; font-size: 13px; text-align: center; user-select: none;
+  }
+  .combine-chip.selected { background: #40916c; color: #fff; border-color: #1b4332; }
+  .combine-chip:hover { background: #e8f5e9; }
+  .combine-chip.disabled { opacity: 0.5; cursor: not-allowed; background: #f0f0f0; border-color: #ccc; color: #999; }
+  .choice-row { display: flex; gap: 10px; justify-content: center; margin: 14px 0; flex-wrap: wrap; }
+  .resolved-card {
+    border: 2px solid #40916c; border-radius: 10px; padding: 10px 14px; margin: 10px 0;
+    background: #f7fdf9; display: flex; flex-direction: column; gap: 6px;
+  }
+  .resolved-card .title { font-weight: 800; color: #1b4332; font-size: 15px; }
+  .resolved-card .detail { font-size: 13px; color: #333; margin-left: 10px; }
+
+  .hidden { display: none !important; }
+
+  #game-over { justify-content: center; text-align: center; }
+  #game-over h1 { font-size: 40px; margin-bottom: 16px; }
+  .reason { color: #d8f3dc; font-size: 17px; margin-bottom: 24px; line-height: 1.5; }
+
+  @media (max-width: 640px) {
+    #game-screen { padding: 4px; }
+    .card { width: 72px; }
+    .player-header { font-size: 14px; flex-wrap: wrap; gap: 6px; }
+    .slots { grid-template-columns: repeat(2, 1fr) auto; }
+    .complication-slot { grid-column: 3; }
+  }
+</style>
+</head>
+<body>
+
+<div id="start-screen" class="screen active">
+  <div class="start-card">
+    <h1>PTCB Card Battler</h1>
+    <p>A two-player battling card game for studying for the PTCB exam. Play as a patient fighting diseases with drugs — every drug is a flashcard you can't read until you play it.</p>
+    <div class="field">
+      <label>Player 1 name</label>
+      <input id="p1name" value="Player 1">
+    </div>
+    <div class="field">
+      <label>Player 2 name</label>
+      <input id="p2name" value="Player 2">
+    </div>
+    <div style="margin-top: 10px; font-size: 13px; color: #555;">Hot-seat game — share one device, take turns.</div>
+    <button class="btn btn-primary" id="startBtn">Start Game</button>
+  </div>
+</div>
+
+<div id="game-screen" class="screen hidden">
+  <div class="toolbar">
+    <div class="turn-badge" id="turn-display">Turn 1</div>
+    <div class="phase-text" id="phase-display">Draw</div>
+    <div class="plays-left" id="plays-left">Plays: 2</div>
+    <button class="btn btn-secondary" id="combine-btn" disabled>Combine Conditions</button>
+    <button class="btn btn-secondary" id="end-turn">End Turn</button>
+  </div>
+  <div id="log" class="log"></div>
+
+  <div class="board">
+    <div class="player-area opponent" id="opponent-area">
+      <div class="player-header">
+        <span id="op-name">Opponent</span>
+        <span class="cond-counter" id="op-cond">0 / 20</span>
+      </div>
+      <div class="traits" id="op-traits"></div>
+      <div class="slots">
+        <div class="slot-group">Disease Slots</div>
+        <div class="disease-slots" id="op-disease-slots">
+          <div class="slot empty" data-idx="0"></div>
+          <div class="slot empty" data-idx="1"></div>
+          <div class="slot empty" data-idx="2"></div>
+        </div>
+        <div class="slot-group">Complication Slot</div>
+        <div class="complication-slot slot empty" id="op-comp-slot"></div>
+      </div>
+      <div class="hand-sizes" id="op-hand-sizes"></div>
+    </div>
+
+    <div class="player-area you" id="you-area">
+      <div class="player-header">
+        <span id="you-name">You</span>
+        <span class="cond-counter" id="you-cond">0 / 20</span>
+      </div>
+      <div class="traits" id="you-traits"></div>
+      <div class="slots">
+        <div class="slot-group">Disease Slots</div>
+        <div class="disease-slots" id="you-disease-slots">
+          <div class="slot empty" data-idx="0"></div>
+          <div class="slot empty" data-idx="1"></div>
+          <div class="slot empty" data-idx="2"></div>
+        </div>
+        <div class="slot-group">Complication Slot</div>
+        <div class="complication-slot slot empty" id="you-comp-slot"></div>
+      </div>
+      <div class="hands">
+        <div class="hand-group"><div class="hand-label">Drugs</div><div class="hand" id="you-drugs"></div></div>
+        <div class="hand-group"><div class="hand-label">Diseases</div><div class="hand" id="you-diseases"></div></div>
+        <div class="hand-group"><div class="hand-label">Augmentations</div><div class="hand" id="you-augs"></div></div>
+      </div>
+      <div class="hint" id="you-hint">Click a card to play it.</div>
+    </div>
+  </div>
+</div>
+
+<div id="game-over" class="screen hidden">
+  <h1 id="winner-text">Winner</h1>
+  <div class="reason" id="game-reason"></div>
+  <button class="btn btn-primary" id="restart">Play Again</button>
+</div>
+
+<!-- Drug play modal -->
+<div class="modal-backdrop" id="drug-backdrop">
+  <div class="modal" id="drug-modal">
+    <div class="close-row"><button class="btn btn-outline" id="drug-cancel">Cancel</button></div>
+    <h2 id="drug-title">Drug</h2>
+    <div id="drug-face-down" class="card face-down type-drug" style="width:170px; aspect-ratio: 1 / 1.4; margin: 0 auto 14px auto;">
+      <div class="card-name" id="drug-face-name">???</div>
+      <div class="card-face-down-info">Flip to read info</div>
+    </div>
+    <div id="drug-info" class="hidden drug-info">
+      <div class="row"><span class="label">Generic:</span> <span id="drug-generic"></span></div>
+      <div class="row"><span class="label">Brand:</span> <span id="drug-brand"></span></div>
+      <div class="row"><span class="label">Class:</span> <span id="drug-class"></span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="label">Treats conditions:</span> <span id="drug-treats-cond"></span></div>
+      <div class="row"><span class="label">Treats diseases:</span> <span id="drug-treats-disease"></span></div>
+      <div class="row"><span class="label">Side effects:</span> <span id="drug-side-effects"></span></div>
+      <div class="row"><span class="label">Contraindications:</span> <span id="drug-contraindications"></span></div>
+    </div>
+    <div id="drug-aug-select" class="hidden" style="margin:14px 0;">
+      <div style="font-weight:700; margin-bottom:6px;">Optional augmentation (1 play total):</div>
+      <div id="drug-aug-options" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+    </div>
+    <div class="drug-actions">
+      <button class="btn btn-secondary" id="drug-decline">Not this drug</button>
+      <button class="btn btn-primary" id="drug-play">Play this drug</button>
+    </div>
+  </div>
+</div>
+
+<!-- Combining conditions modal -->
+<div class="modal-backdrop" id="combine-backdrop">
+  <div class="modal" id="combine-modal">
+    <div class="close-row"><button class="btn btn-outline" id="combine-cancel">Cancel</button></div>
+    <h2 id="combine-title">Combine Conditions</h2>
+    <p id="combine-instr" style="color:#555; font-size:14px;">Select 4 conditions from your opponent to combine.</p>
+    <div class="combine-grid" id="combine-grid"></div>
+    <div class="choice-row" id="combine-actions"></div>
+    <div id="combine-result" class="hidden" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- Generic confirmation modal -->
+<div class="modal-backdrop" id="confirm-backdrop">
+  <div class="modal" id="confirm-modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-text" style="color:#444; line-height:1.5; margin:14px 0;"></p>
+    <div class="choice-row" id="confirm-actions"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PTCB Card Battler — Game Engine
+   ============================================================ */
+
+// ---------- Card data (from rules draft v0.1 test set) ----------
+const CONDITIONS_ALL = [
+  'High Blood Pressure','Headache','High Blood Sugar','Fatigue','Frequent Urination',
+  'Fever','Cough','Burning Urination','Pain','Nausea','Dizziness','Diarrhea','Rash','Drowsiness'
+];
+
+const DISEASES = [
+  { id: 'htn', name: 'Hypertension', attack: 1, defense: 2, conditions: ['High Blood Pressure','Headache'] },
+  { id: 't2d', name: 'Type 2 Diabetes', attack: 1, defense: 2, conditions: ['High Blood Sugar','Fatigue','Frequent Urination'] },
+  { id: 'bp', name: 'Bacterial Pneumonia', attack: 2, defense: 2, conditions: ['Fever','Cough','Fatigue'] },
+  { id: 'uti', name: 'Urinary Tract Infection', attack: 1, defense: 1, conditions: ['Burning Urination','Frequent Urination','Pain'] },
+  { id: 'ar', name: 'Allergic Rhinitis', attack: 1, defense: 1, conditions: ['Cough','Headache'] },
+  { id: 'gerd', name: 'GERD', attack: 1, defense: 2, conditions: ['Pain','Nausea','Cough'] }
+];
+
+function resistCat(cls) {
+  const c = cls.toLowerCase();
+  if (c.includes('ace inhibitor') || c.includes('calcium channel blocker') || c.includes('beta blocker') || c.includes('nsaid') || c.includes('analgesic')) return 'cardiovascular';
+  if (c.includes('biguanide') || c.includes('sulfonylurea') || c.includes('proton pump') || c.includes('h2 blocker') || c.includes('second generation')) return 'metabolic';
+  if (c.includes('penicillin') || c.includes('macrolide') || c.includes('urinary antibacterial') || c.includes('fluoroquinolone') || c.includes('first-generation')) return 'anti-infective';
+  return null;
+}
+
+const DRUGS = [
+  { id: 'lisinopril', name: 'Lisinopril', generic: 'Lisinopril', brand: 'Zestril, Prinivil', cls: 'Antihypertensive — ACE inhibitor',
+    treatsCond: ['High Blood Pressure'], treatsDisease: ['Hypertension'], sideEffects: ['Cough','Dizziness'], contra: ['Pregnancy'], resistCat: 'cardiovascular' },
+  { id: 'amlodipine', name: 'Amlodipine', generic: 'Amlodipine', brand: 'Norvasc', cls: 'Antihypertensive — calcium channel blocker',
+    treatsCond: ['High Blood Pressure'], treatsDisease: ['Hypertension'], sideEffects: ['Dizziness'], contra: [], resistCat: 'cardiovascular' },
+  { id: 'propranolol', name: 'Propranolol', generic: 'Propranolol', brand: 'Inderal', cls: 'Antihypertensive — nonselective beta blocker',
+    treatsCond: ['High Blood Pressure','Headache'], treatsDisease: ['Hypertension'], sideEffects: ['Fatigue','Dizziness'], contra: ['Asthma'], resistCat: 'cardiovascular' },
+  { id: 'metformin', name: 'Metformin', generic: 'Metformin', brand: 'Glucophage', cls: 'Antidiabetic — biguanide',
+    treatsCond: ['High Blood Sugar'], treatsDisease: ['Type 2 Diabetes'], sideEffects: ['Diarrhea','Nausea'], contra: ['Kidney Disease'], resistCat: 'metabolic' },
+  { id: 'glipizide', name: 'Glipizide', generic: 'Glipizide', brand: 'Glucotrol', cls: 'Antidiabetic — sulfonylurea',
+    treatsCond: ['High Blood Sugar'], treatsDisease: ['Type 2 Diabetes'], sideEffects: ['Dizziness','Nausea'], contra: [], resistCat: 'metabolic' },
+  { id: 'amoxicillin', name: 'Amoxicillin', generic: 'Amoxicillin', brand: 'Amoxil', cls: 'Antibiotic — penicillin',
+    treatsCond: ['Fever'], treatsDisease: ['Bacterial Pneumonia'], sideEffects: ['Diarrhea','Rash'], contra: ['Penicillin Allergy'], resistCat: 'anti-infective' },
+  { id: 'azithromycin', name: 'Azithromycin', generic: 'Azithromycin', brand: 'Zithromax', cls: 'Antibiotic — macrolide',
+    treatsCond: ['Fever'], treatsDisease: ['Bacterial Pneumonia'], sideEffects: ['Diarrhea','Nausea'], contra: [], resistCat: 'anti-infective' },
+  { id: 'nitrofurantoin', name: 'Nitrofurantoin', generic: 'Nitrofurantoin', brand: 'Macrobid', cls: 'Antibiotic — urinary antibacterial',
+    treatsCond: ['Burning Urination'], treatsDisease: ['Urinary Tract Infection'], sideEffects: ['Nausea','Headache'], contra: ['Kidney Disease'], resistCat: 'anti-infective' },
+  { id: 'ciprofloxacin', name: 'Ciprofloxacin', generic: 'Ciprofloxacin', brand: 'Cipro', cls: 'Antibiotic — fluoroquinolone',
+    treatsCond: ['Burning Urination','Fever'], treatsDisease: ['Urinary Tract Infection','Pyelonephritis'], sideEffects: ['Nausea','Diarrhea'], contra: [], resistCat: 'anti-infective' },
+  { id: 'loratadine', name: 'Loratadine', generic: 'Loratadine', brand: 'Claritin', cls: 'Antihistamine — second generation',
+    treatsCond: ['Cough'], treatsDisease: ['Allergic Rhinitis'], sideEffects: ['Headache'], contra: [], resistCat: 'metabolic' },
+  { id: 'diphenhydramine', name: 'Diphenhydramine', generic: 'Diphenhydramine', brand: 'Benadryl', cls: 'Antihistamine — first generation',
+    treatsCond: ['Cough'], treatsDisease: ['Allergic Rhinitis'], sideEffects: ['Drowsiness','Dizziness'], contra: [], resistCat: 'anti-infective' },
+  { id: 'omeprazole', name: 'Omeprazole', generic: 'Omeprazole', brand: 'Prilosec', cls: 'Proton pump inhibitor',
+    treatsCond: ['Pain','Nausea'], treatsDisease: ['GERD'], sideEffects: ['Headache','Diarrhea'], contra: [], resistCat: 'metabolic' },
+  { id: 'famotidine', name: 'Famotidine', generic: 'Famotidine', brand: 'Pepcid', cls: 'H2 blocker',
+    treatsCond: ['Pain'], treatsDisease: ['GERD'], sideEffects: ['Headache'], contra: [], resistCat: 'metabolic' },
+  { id: 'ibuprofen', name: 'Ibuprofen', generic: 'Ibuprofen', brand: 'Advil, Motrin', cls: 'NSAID',
+    treatsCond: ['Pain','Fever','Headache'], treatsDisease: [], sideEffects: ['Nausea'], contra: ['Kidney Disease','Pregnancy'], resistCat: 'cardiovascular' },
+  { id: 'acetaminophen', name: 'Acetaminophen', generic: 'Acetaminophen', brand: 'Tylenol', cls: 'Analgesic, antipyretic',
+    treatsCond: ['Pain','Fever','Headache'], treatsDisease: [], sideEffects: [], contra: [], resistCat: 'cardiovascular' }
+];
+
+const AUGMENTATIONS = [
+  { id: 'cardio-buff', name: 'Cardiovascular Optimization', kind: 'buff', targetClasses: ['ACE inhibitors','calcium channel blockers','beta blockers','NSAIDs','analgesics/antipyretics'],
+    effect: 'The drug removes one additional instance of a condition it treats.', resistCat: 'cardiovascular' },
+  { id: 'metabolic-buff', name: 'Metabolic Optimization', kind: 'buff', targetClasses: ['Biguanides','sulfonylureas','proton pump inhibitors','H2 blockers','antihistamines (second generation)'],
+    effect: 'The drug removes one additional instance of a condition it treats.', resistCat: 'metabolic' },
+  { id: 'anti-infective-buff', name: 'Anti-Infective Optimization', kind: 'buff', targetClasses: ['Penicillin antibiotics','macrolide antibiotics','urinary antibacterials','fluoroquinolones','first-generation antihistamines'],
+    effect: 'The drug removes one additional instance of a condition it treats.', resistCat: 'anti-infective' },
+  { id: 'cardio-debuff', name: 'Cardiovascular Resistance', kind: 'debuff', targetClasses: ['ACE inhibitors','calcium channel blockers','beta blockers','NSAIDs','analgesics/antipyretics'],
+    effect: "Opponent's next drug in this class has no treatment effect and deals no doses. Side effects still apply.", resistCat: 'cardiovascular' },
+  { id: 'metabolic-debuff', name: 'Metabolic Resistance', kind: 'debuff', targetClasses: ['Biguanides','sulfonylureas','proton pump inhibitors','H2 blockers','second-generation antihistamines'],
+    effect: "Opponent's next drug in this class has no treatment effect and deals no doses. Side effects still apply.", resistCat: 'metabolic' },
+  { id: 'anti-infective-debuff', name: 'Anti-Infective Resistance', kind: 'debuff', targetClasses: ['Penicillin antibiotics','macrolide antibiotics','urinary antibacterials','fluoroquinolones','first-generation antihistamines'],
+    effect: "Opponent's next drug in this class has no treatment effect and deals no doses. Side effects still apply.", resistCat: 'anti-infective' },
+  { id: 'renal-impairment', name: 'Renal Impairment', kind: 'debuff-trait', trait: 'Kidney Disease', effect: "Impose the Kidney Disease trait on your opponent." },
+  { id: 'renal-recovery', name: 'Renal Recovery', kind: 'cure', trait: 'Kidney Disease', effect: "Remove the Kidney Disease trait from you." }
+];
+
+// Complications & traits are not listed in the test set, so we add a playable set
+// to make the "combine conditions" mechanic work.
+const COMPLICATIONS = [
+  { id: 'sepsis', name: 'Sepsis', attack: 2, defense: 3, symptoms: ['Fever','Cough','Fatigue','Pain'] },
+  { id: 'dka', name: 'Diabetic Ketoacidosis', attack: 2, defense: 2, symptoms: ['High Blood Sugar','Fatigue','Frequent Urination','Nausea'] },
+  { id: 'htn-crisis', name: 'Hypertensive Crisis', attack: 1, defense: 3, symptoms: ['High Blood Pressure','Headache','Pain','Nausea'] },
+  { id: 'resp-fail', name: 'Respiratory Failure', attack: 2, defense: 2, symptoms: ['Fever','Cough','Pain','Headache'] }
+];
+
+const TRAITS = [
+  { id: 'pregnancy', name: 'Pregnancy', pool: ['Nausea','Fatigue','Headache','High Blood Pressure','Pain'], contraDrugs: ['Lisinopril','Ibuprofen'] },
+  { id: 'kidney', name: 'Kidney Disease', pool: ['Nausea','Fatigue','Pain','High Blood Pressure','Frequent Urination','Burning Urination'], contraDrugs: ['Metformin','Nitrofurantoin','Ibuprofen'] },
+  { id: 'asthma', name: 'Asthma', pool: ['Cough','Fatigue','Pain','Headache'], contraDrugs: ['Propranolol'] },
+  { id: 'pen-allergy', name: 'Penicillin Allergy', pool: ['Rash','Nausea','Headache','Pain'], contraDrugs: ['Amoxicillin'] }
+];
+
+// ---------- Helpers ----------
+function uid() { return 'c' + Date.now() + Math.random().toString(36).slice(2, 8); }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function findTemplate(list, id) { return list.find(x => x.id === id); }
+function findDrugByName(name) { return DRUGS.find(d => d.name === name); }
+function traitIdByName(name) { const t = TRAITS.find(x => x.name === name); return t ? t.id : null; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ---------- Game state ----------
+const game = {
+  players: [],
+  meIdx: 0,
+  turn: 0,           // 0-based player index whose turn it is
+  turnNumber: 1,
+  phase: 'draw',     // draw | main | attack | waiting
+  playsLeft: 2,
+  combineUsed: false,
+  supply: {},
+  log: [],
+  gameOver: false,
+  winner: null,
+  selCard: null,     // {type, index} currently selected in hand
+  drugPending: null, // drug being prepared to play
+  augPending: null,  // augmentation chosen with drug
+  combineSel: [],    // selected condition ids for combining
+  targetSlotIdx: null
+};
+
+const P1 = 0, P2 = 1;
+
+function newPlayer(name, deck) {
+  return {
+    name,
+    deck: shuffle([...deck]),
+    hands: { drugs: [], diseases: [], augments: [] },
+    slots: [null, null, null],      // disease instances
+    compSlot: null,                 // complication instance
+    traits: [],                     // trait ids
+    conditions: [],                 // {id, name, attachedTo: slotIndex|null, source}
+    conditionCount: 0,
+    resistance: {},                 // resistCat -> true (single-use)
+    hasHadTurn: false,
+    lost: false
+  };
+}
+
+function buildDeck() {
+  const deck = [];
+  DISEASES.forEach(d => deck.push({ type: 'disease', template: d }));
+  DRUGS.forEach(d => deck.push({ type: 'drug', template: d }));
+  AUGMENTATIONS.forEach(a => deck.push({ type: 'augment', template: a }));
+  return deck;
+}
+
+function initSupply() {
+  const s = {};
+  CONDITIONS_ALL.forEach(c => s[c] = 18);
+  return s;
+}
+
+function log(msg, kind = 'sys') {
+  game.log.push({ msg, kind, t: Date.now() });
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('log');
+  const entries = game.log.slice(-14).map(e => `<div class="log-entry ${e.kind}">${esc(e.msg)}</div>`).join('');
+  el.innerHTML = entries;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------- Turn / flow ----------
+function startGame(p1Name, p2Name) {
+  const deck = buildDeck();
+  game.players = [newPlayer(p1Name, deck), newPlayer(p2Name, buildDeck())];
+  game.supply = initSupply();
+  game.log = [];
+  game.turnNumber = 1;
+  game.meIdx = P1;
+
+  // draw opening 5 cards each
+  game.players.forEach(p => {
+    for (let i = 0; i < 5; i++) drawCard(p);
+  });
+
+  // coin flip
+  game.turn = Math.random() < 0.5 ? P1 : P2;
+  game.phase = 'draw';
+  game.playsLeft = 2;
+  game.combineUsed = false;
+  game.gameOver = false;
+  game.winner = null;
+
+  log(`Coin flip: ${game.players[game.turn].name} goes first.`, 'sys');
+  log('Both players skip their attack on the first turn.', 'sys');
+  beginTurn(game.players[game.turn]);
+  showScreen('game-screen');
+  render();
+}
+
+function beginTurn(p) {
+  game.phase = 'draw';
+  game.playsLeft = 2;
+  game.combineUsed = false;
+  game.selCard = null;
+  game.drugPending = null;
+  game.augPending = null;
+  game.targetSlotIdx = null;
+  updateTurnUI();
+  drawCardsForTurn(p);
+}
+
+function drawCard(p) {
+  // Draw a single card, sorting it into the matching hand. Returns false if deck empty (player loses).
+  if (p.deck.length === 0) { lose(p, 'deck'); return false; }
+  const card = p.deck.shift();
+  sortIntoHand(p, card);
+  return true;
+}
+
+function drawCardsForTurn(p) {
+  // Draw 2 cards. If deck empty mid-draw, player loses.
+  const toDraw = 2;
+  let drawn = 0;
+  const drawOne = () => {
+    if (p.deck.length === 0) {
+      lose(p, 'deck');
+      return;
+    }
+    const card = p.deck.shift();
+    sortIntoHand(p, card);
+    drawn++;
+    if (drawn < toDraw) drawOne();
+    else {
+      game.phase = 'main';
+      updateTurnUI();
+      render();
+      log(`${p.name}'s turn — draw 2 cards. Main phase (${game.playsLeft} plays left).`, 'sys');
+    }
+  };
+  drawOne();
+}
+
+function sortIntoHand(p, card) {
+  const key = card.type === 'augment' ? 'augments' : card.type + 's';
+  const limits = { drugs: 20, diseases: 5, augments: 5 };
+  const limit = limits[key];
+  if (p.hands[key].length >= limit) {
+    askDiscard(p, card, key, limit);
+  } else {
+    p.hands[key].push(card);
+  }
+}
+
+function askDiscard(p, card, key, limit) {
+  // Simple: discard the drawn card (auto) with a log note; could prompt but keep MVP smooth
+  log(`${p.name}'s ${key} hand is full; drawn card discarded.`, 'sys');
+}
+
+// ---------- Actions ----------
+function playDiseaseFromHand(p, cardIdx) {
+  const card = p.hands.diseases[cardIdx];
+  if (!card) return;
+  // find empty slot
+  const empty = p.slots.findIndex(s => s === null);
+  if (empty === -1) {
+    log('No open disease slot.', 'sys');
+    return;
+  }
+  const t = card.template;
+  const instance = { id: uid(), template: t, doses: 0 };
+  p.slots[empty] = instance;
+  p.hands.diseases.splice(cardIdx, 1);
+  game.playsLeft--;
+  game.selCard = null;
+  log(`${p.name} played disease: ${t.name} (Attack ${t.attack}, Defense ${t.defense}).`, 'sys');
+  checkPlaysDone();
+  render();
+}
+
+function selectDrug(p, cardIdx) {
+  const card = p.hands.drugs[cardIdx];
+  if (!card) return;
+  game.drugPending = { pIdx: game.turn, cardIdx, template: card.template };
+  game.augPending = null;
+  openDrugModal();
+}
+
+function openDrugModal() {
+  const pending = game.drugPending;
+  const d = pending.template;
+  document.getElementById('drug-title').textContent = d.name;
+  document.getElementById('drug-face-name').textContent = d.name;
+  document.getElementById('drug-face-down').className = 'card face-down type-drug';
+  document.getElementById('drug-face-down').style.width = '170px';
+  document.getElementById('drug-face-down').style.aspectRatio = '1 / 1.4';
+  document.getElementById('drug-info').classList.add('hidden');
+  document.getElementById('drug-aug-select').classList.add('hidden');
+
+  // Build augmentation options
+  const p = game.players[pending.pIdx];
+  const augBox = document.getElementById('drug-aug-options');
+  augBox.innerHTML = '';
+  const noneBtn = makeAugOption('None', null, true);
+  augBox.appendChild(noneBtn);
+  let hasAug = false;
+  p.hands.augments.forEach((ac, ai) => {
+    const at = ac.template;
+    // only suggest meaningful augments with this drug
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-outline';
+    btn.textContent = at.name;
+    btn.onclick = () => {
+      game.augPending = { cardIdx: ai, template: at };
+      document.querySelectorAll('#drug-aug-options .btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    };
+    augBox.appendChild(btn);
+    hasAug = true;
+  });
+  if (!hasAug) {
+    const empty = document.createElement('span'); empty.textContent = '(no augmentations)'; empty.style.color='#999; font-size:13px'; empty.style.padding='6px 10px';
+    augBox.appendChild(empty);
+  }
+  document.getElementById('drug-aug-select').classList.remove('hidden');
+  document.getElementById('drug-backdrop').classList.add('open');
+  render();
+}
+
+function makeAugOption(name, sel, selected) {
+  const b = document.createElement('button');
+  b.className = 'btn ' + (selected ? 'btn-primary' : 'btn-outline') + (selected ? ' selected' : '');
+  b.textContent = name;
+  if (!sel) b.onclick = () => { game.augPending = null; document.querySelectorAll('#drug-aug-options .btn').forEach(x => x.classList.remove('selected')); b.classList.add('selected'); };
+  return b;
+}
+
+function closeDrugModal() {
+  document.getElementById('drug-backdrop').classList.remove('open');
+}
+
+function confirmPlayDrug() {
+  const pending = game.drugPending;
+  if (!pending) return;
+  const p = game.players[pending.pIdx];
+  const d = pending.template;
+  const cardIdx = pending.cardIdx;
+
+  // Remove drug from hand
+  p.hands.drugs.splice(cardIdx, 1);
+  game.playsLeft--;
+
+  // Reveal info side
+  showDrugInfo(d);
+
+  // Resolve
+  setTimeout(() => resolveDrug(p, d), 700);
+}
+
+function showDrugInfo(d) {
+  document.getElementById('drug-face-down').classList.add('hidden');
+  document.getElementById('drug-info').classList.remove('hidden');
+  document.getElementById('drug-generic').textContent = d.generic;
+  document.getElementById('drug-brand').textContent = d.brand;
+  document.getElementById('drug-class').textContent = d.cls;
+  document.getElementById('drug-treats-cond').textContent = d.treatsCond.join(', ') || 'None';
+  document.getElementById('drug-treats-disease').textContent = d.treatsDisease.join(', ') || 'None';
+  document.getElementById('drug-side-effects').textContent = d.sideEffects.join(', ') || 'None';
+  document.getElementById('drug-contraindications').textContent = d.contra.join(', ') || 'None';
+}
+
+function resolveDrug(p, d) {
+  const opp = game.players[1 - (p === game.players[P1] ? P1 : P2)];
+  const pIdx = p === game.players[P1] ? P1 : P2;
+
+  // 1. Contraindication check
+  const contraHit = d.contra.find(c => p.traits.includes(traitIdByName(c)));
+  if (contraHit) {
+    log(`${p.name} played ${d.name}. BLOCKED: you have the "${contraHit}" trait, which is a contraindication. Drug discarded, no effect.`, pIdx === P1 ? 'me' : 'opp');
+    if (game.augPending) {
+      log(`${game.augPending.template.name} augmentation wasted.`, 'sys');
+      p.hands.augments.splice(game.augPending.cardIdx, 1); // adjust index carefully below
+    }
+    game.augPending = null;
+    closeDrugModal();
+    checkPlaysDone();
+    render();
+    checkWin();
+    return;
+  }
+
+  const buff = game.augPending && game.augPending.template.kind === 'buff' && augMatchesClass(game.augPending.template, d.cls);
+  const debuffActive = p.resistance[d.resistCat];
+  const cure = game.augPending && game.augPending.template.kind === 'cure';
+
+  // If cure aug (Renal Recovery), remove trait first
+  if (cure) {
+    const tId = game.augPending.template.trait;
+    if (p.traits.includes(tId)) {
+      p.traits = p.traits.filter(x => x !== tId);
+      log(`${p.name} used ${game.augPending.template.name}: removed ${tId} trait.`, pIdx === P1 ? 'me' : 'sys');
+    }
+  }
+
+  // 2. Treatment
+  let treatedAny = false;
+  if (!debuffActive) {
+    d.treatsCond.forEach(cond => {
+      let removeCount = 1 + (buff ? 1 : 0);
+      // remove up to removeCount instances of cond from p's conditions
+      let removed = 0;
+      for (let i = p.conditions.length - 1; i >= 0 && removed < removeCount; i--) {
+        if (p.conditions[i].name === cond) {
+          p.conditions.splice(i, 1);
+          p.conditionCount--;
+          removed++;
+          treatedAny = true;
+        }
+      }
+      if (removed > 0) {
+        log(`${p.name} treated ${removed}x ${cond}.`, pIdx === P1 ? 'me' : 'opp');
+      }
+    });
+    if (!d.treatsCond.length) {
+      log(`${d.name} treats no conditions.`, 'sys');
+    }
+  } else {
+    log(`Resistance debuff (${d.resistCat}) blocks treatment and doses for ${d.name}.`, pIdx === P1 ? 'me' : 'opp');
+    p.resistance[d.resistCat] = false; // consume
+  }
+
+  // 3. Side effects
+  d.sideEffects.forEach(se => {
+    addCondition(p, se, null, 'sideEffect');
+    log(`${p.name} takes side effect: ${se}.`, pIdx === P1 ? 'me' : 'opp');
+  });
+
+  // 4. Disease attack (doses to opponent diseases this drug treats)
+  if (!debuffActive) {
+    let dosesDealt = 0;
+    opp.slots.forEach((s, si) => {
+      if (s && d.treatsDisease.includes(s.template.name)) {
+        s.doses++;
+        dosesDealt++;
+        log(`${d.name} deals 1 dose to opponent's ${s.template.name} (${s.doses}/${s.template.defense}).`, pIdx === P1 ? 'me' : 'opp');
+        if (s.doses >= s.template.defense) killDisease(opp, si);
+      }
+    });
+    if (opp.compSlot && d.treatsDisease.includes(opp.compSlot.template.name)) {
+      opp.compSlot.doses++;
+      dosesDealt++;
+      log(`${d.name} deals 1 dose to opponent's complication ${opp.compSlot.template.name} (${opp.compSlot.doses}/${opp.compSlot.defense}).`, pIdx === P1 ? 'me' : 'opp');
+      if (opp.compSlot.doses >= opp.compSlot.defense) killComplication(opp);
+    }
+    if (!treatedAny && dosesDealt === 0 && d.sideEffects.length === 0) {
+      log(`${d.name} had no treatment effect this turn.`, 'sys');
+    }
+  }
+
+  // Consume resistance debuff on target if matched
+  if (debuffActive) p.resistance[d.resistCat] = false;
+
+  // Buff debuff augment (resistance) -> apply to opponent
+  if (game.augPending && game.augPending.template.kind === 'debuff') {
+    opp.resistance[game.augPending.template.resistCat] = true;
+    log(`${p.name} played ${game.augPending.template.name}: opponent gets ${game.augPending.template.resistCat} resistance (next drug blocked).`, pIdx === P1 ? 'me' : 'opp');
+  }
+
+  // Renal Impairment (debuff-trait) -> impose trait on opponent
+  if (game.augPending && game.augPending.template.kind === 'debuff-trait') {
+    imposeTrait(opp, game.augPending.template.trait, p.name);
+  }
+
+  // Augmentation is used up along with the drug (unless already consumed by contraindication return above)
+  if (game.augPending) {
+    p.hands.augments.splice(game.augPending.cardIdx, 1);
+  }
+
+  game.augPending = null;
+  closeDrugModal();
+  checkPlaysDone();
+  render();
+  checkWin();
+}
+
+function augMatchesCat(at, dCls) {
+  // heuristic: match drug class to augment target class list by keyword
+  const c = dCls.toLowerCase();
+  return at.targetClasses.some(tc => {
+    const tcL = tc.toLowerCase();
+    if (tcL.includes('ace inhibitor')) return c.includes('ace inhibitor');
+    if (tcL.includes('calcium channel blocker')) return c.includes('calcium channel blocker');
+    if (tcL.includes('beta blocker')) return c.includes('beta blocker');
+    if (tcL.includes('nsaid')) return c.includes('nsaid');
+    if (tcL.includes('analgesic')) return c.includes('analgesic') || c.includes('antipyretic');
+    if (tcL.includes('biguanide')) return c.includes('biguanide');
+    if (tcL.includes('sulfonylurea')) return c.includes('sulfonylurea');
+    if (tcL.includes('proton pump')) return c.includes('proton pump');
+    if (tcL.includes('h2 blocker')) return c.includes('h2 blocker');
+    if (tcL.includes('second generation')) return c.includes('second generation');
+    if (tcL.includes('penicillin')) return c.includes('penicillin');
+    if (tcL.includes('macrolide')) return c.includes('macrolide');
+    if (tcL.includes('urinary antibacterial')) return c.includes('urinary antibacterial');
+    if (tcL.includes('fluoroquinolone')) return c.includes('fluoroquinolone');
+    if (tcL.includes('first-generation')) return c.includes('first-generation');
+    return false;
+  });
+}
+function augMatchesClass(at, dCls) { return augMatchesCat(at, dCls); }
+
+function imposeTrait(p, traitId, byName) {
+  const t = TRAITS.find(x => x.id === traitId);
+  if (!t) return;
+  if (p.traits.length >= 2) {
+    // replace oldest? rule: attackers can opt to replace one of 2 traits. Auto replace first.
+    log(`${p.name} already has 2 traits; replacing ${p.traits[0]} with ${t.name}.`, 'sys');
+    p.traits.shift();
+  }
+  p.traits.push(traitId);
+  log(`${t.name} trait imposed on ${p.name} (by ${byName}).`, 'sys');
+  render();
+}
+
+function addCondition(p, name, attachedTo, source) {
+  if (game.supply[name] <= 0) return false;
+  game.supply[name]--;
+  p.conditions.push({ id: uid(), name, attachedTo, source });
+  p.conditionCount++;
+  return true;
+}
+
+function killDisease(p, slotIdx) {
+  const s = p.slots[slotIdx];
+  // remove conditions attached to this disease
+  p.conditions = p.conditions.filter(c => c.attachedTo !== slotIdx);
+  p.slots[slotIdx] = null;
+  log(`${s.template.name} dies (${s.template.defense} doses). Its attached conditions are removed.`, 'sys');
+}
+
+function killComplication(p) {
+  const s = p.compSlot;
+  p.compSlot = null;
+  log(`Complication ${s.template.name} dies.`, 'sys');
+}
+
+function checkPlaysDone() {
+  render();
+}
+
+function doAttack() {
+  const p = game.players[game.turn];
+  const opp = game.players[1 - game.turn];
+  if (!p.hasHadTurn) {
+    // first turn: skip attack
+    p.hasHadTurn = true;
+    log(`${p.name} skips attack on first turn.`, 'sys');
+    endTurn();
+    return;
+  }
+  let totalConditions = 0;
+  const attackers = [...p.slots.filter(Boolean), p.compSlot].filter(Boolean);
+  attackers.forEach(a => {
+    const isComp = a === p.compSlot;
+    const t = a.template;
+    for (let i = 0; i < t.attack; i++) {
+      // choose a symptom not exhausted in supply
+      const available = t.conditions.filter(c => game.supply[c] > 0);
+      if (available.length === 0) {
+        log(`${t.name} attacks but supply exhausted for all its symptoms.`, 'sys');
+        continue;
+      }
+      const cond = available[Math.floor(Math.random() * available.length)];
+      addCondition(opp, cond, isComp ? null : p.slots.indexOf(a), 'symptom');
+      // note: for complications attachedTo is null (complications aren't in disease slots)
+      totalConditions++;
+    }
+  });
+  log(`${p.name}'s diseases attack: ${totalConditions} condition(s) inflicted on ${opp.name}.`, p === game.players[P1] ? 'me' : 'opp');
+  render();
+  checkWin();
+  if (!game.gameOver) endTurn();
+}
+
+function endTurn() {
+  game.players[game.turn].hasHadTurn = true;
+  game.turn = 1 - game.turn;
+  if (game.turn === P1) game.turnNumber++;
+  beginTurn(game.players[game.turn]);
+}
+
+function lose(p, reason) {
+  game.gameOver = true;
+  game.winner = game.players[1 - (p === game.players[P1] ? P1 : P2)];
+  const why = reason === 'deck' ? 'ran out of cards in their deck' : 'reached 20 conditions';
+  document.getElementById('winner-text').textContent = `${game.winner.name} wins!`;
+  document.getElementById('game-reason').textContent = `${p.name} ${why}.`;
+  showScreen('game-over');
+}
+
+function checkWin() {
+  game.players.forEach(p => {
+    if (!game.gameOver && p.conditionCount >= 20) lose(p, 'conditions');
+  });
+}
+
+// ---------- Combine conditions ----------
+function openCombine() {
+  const p = game.players[game.turn];
+  const opp = game.players[1 - game.turn];
+  const pool = opp.conditions;
+  if (pool.length < 4) {
+    log(`Not enough conditions on ${opp.name} to combine (need 4, have ${pool.length}).`, 'sys');
+    return;
+  }
+  game.combineSel = [];
+  const grid = document.getElementById('combine-grid');
+  grid.innerHTML = '';
+  pool.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'combine-chip';
+    chip.textContent = c.name + (c.source === 'sideEffect' ? ' (side effect)' : '');
+    chip.onclick = () => toggleCombine(c.id);
+    grid.appendChild(chip);
+  });
+  updateCombineUI(p, opp);
+  document.getElementById('combine-backdrop').classList.add('open');
+}
+
+function toggleCombine(id) {
+  const idx = game.combineSel.indexOf(id);
+  if (idx >= 0) game.combineSel.splice(idx, 1);
+  else if (game.combineSel.length < 4) game.combineSel.push(id);
+  const p = game.players[game.turn];
+  const opp = game.players[1 - game.turn];
+  updateCombineUI(p, opp);
+}
+
+function updateCombineUI(p, opp) {
+  const chips = document.querySelectorAll('#combine-grid .combine-chip');
+  chips.forEach(chip => {
+    // find condition by text is fragile; instead we stored nothing. We'll re-render approach: just toggle selected class via data
+  });
+  // Simpler: reattach by matching condition id order — chips are in same order as opp.conditions
+  opp.conditions.forEach((c, i) => {
+    if (chips[i]) chips[i].classList.toggle('selected', game.combineSel.includes(c.id));
+    if (chips[i]) chips[i].classList.toggle('disabled', game.combineSel.length >= 4 && !game.combineSel.includes(c.id));
+  });
+  const actions = document.getElementById('combine-actions');
+  actions.innerHTML = '';
+  if (game.combineSel.length === 4) {
+    const compBtn = document.createElement('button');
+    compBtn.className = 'btn btn-primary';
+    compBtn.textContent = 'Make Complication';
+    compBtn.onclick = () => finishCombine('complication');
+    actions.appendChild(compBtn);
+    const traitBtn = document.createElement('button');
+    traitBtn.className = 'btn btn-outline';
+    traitBtn.textContent = 'Make Trait';
+    traitBtn.onclick = () => finishCombine('trait');
+    actions.appendChild(traitBtn);
+  } else {
+    const info = document.createElement('span');
+    info.textContent = `Selected ${game.combineSel.length}/4 conditions`;
+    info.style.color = '#555'; info.style.fontSize='13px'; info.style.padding='6px 10px';
+    actions.appendChild(info);
+  }
+}
+
+function finishCombine(kind) {
+  const p = game.players[game.turn];
+  const opp = game.players[1 - game.turn];
+  const selIds = game.combineSel;
+  // discard selected conditions (permanently, return to supply? rule says permanently discarded -> not returned)
+  selIds.forEach(id => {
+    const ci = opp.conditions.findIndex(c => c.id === id);
+    if (ci >= 0) {
+      const c = opp.conditions[ci];
+      // permanently discarded: do NOT return to supply
+      opp.conditions.splice(ci, 1);
+      opp.conditionCount--;
+    }
+  });
+  game.combineSel = [];
+  document.getElementById('combine-backdrop').classList.remove('open');
+  game.combineUsed = true;
+
+  if (kind === 'complication') {
+    // must be 4 different symptoms of a complication; complication slot empty
+    if (p.compSlot !== null) { log('Complication slot full.', 'sys'); render(); checkPlaysDone(); return; }
+    // allow any complication whose symptoms are all among selected (we don't strictly validate since user already picked; pick first matching)
+    const condNames = selIds.map(id => opp.conditions.find(c => c.id === id)?.name).filter(Boolean);
+    // Actually conditions already removed; we lost names. Recompute from nothing. Let's just let user pick which complication.
+    pickComplication(p);
+  } else {
+    pickTrait(p);
+  }
+  render();
+  checkPlaysDone();
+}
+
+function pickComplication(p) {
+  const opp = game.players[1 - game.turn];
+  const avail = COMPLICATIONS.filter(c => p.compSlot === null);
+  if (avail.length === 0) { log('No complications available.', 'sys'); return; }
+  // show choice
+  const actions = document.getElementById('combine-actions');
+  actions.innerHTML = '';
+  const note = document.createElement('div'); note.textContent = 'Choose a complication:'; note.style.marginBottom='8px'; note.style.fontWeight='700';
+  actions.appendChild(note);
+  avail.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-outline';
+    b.textContent = c.name + ` (A${c.attack}/D${c.defense})`;
+    b.onclick = () => {
+      p.compSlot = { id: uid(), template: c, doses: 0 };
+      log(`${p.name} created complication ${c.name}. It attacks this turn.`, 'sys');
+      document.getElementById('combine-backdrop').classList.remove('open');
+      render();
+    };
+    actions.appendChild(b);
+  });
+}
+
+function pickTrait(p) {
+  const opp = game.players[1 - game.turn];
+  const actions = document.getElementById('combine-actions');
+  actions.innerHTML = '';
+  const note = document.createElement('div'); note.textContent = 'Choose a trait to impose:'; note.style.marginBottom='8px'; note.style.fontWeight='700';
+  actions.appendChild(note);
+  TRAITS.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-outline';
+    b.textContent = t.name;
+    b.onclick = () => {
+      imposeTrait(opp, t.id, p.name);
+      document.getElementById('combine-backdrop').classList.remove('open');
+      render();
+    };
+    actions.appendChild(b);
+  });
+}
+
+// ---------- Trait management (manual cure via Renal Recovery handled in drug) ----------
+
+// ---------- Rendering ----------
+function render() {
+  if (game.gameOver) return;
+  const cur = game.players[game.turn];    // active player = "you" (bottom)
+  const other = game.players[1 - game.turn];
+
+  document.getElementById('you-name').textContent = cur.name;
+  document.getElementById('op-name').textContent = other.name;
+
+  const youCond = document.getElementById('you-cond');
+  const opCond = document.getElementById('op-cond');
+  youCond.textContent = `${cur.conditionCount} / 20`;
+  opCond.textContent = `${other.conditionCount} / 20`;
+  youCond.className = 'cond-counter' + (cur.conditionCount >= 20 ? ' danger' : '');
+  opCond.className = 'cond-counter' + (other.conditionCount >= 20 ? ' danger' : '');
+
+  renderTraits('you-traits', cur.traits);
+  renderTraits('op-traits', other.traits);
+  renderSlots('you-disease-slots', cur.slots, true);
+  renderSlots('op-disease-slots', other.slots, false);
+  renderSlot('you-comp-slot', cur.compSlot, true);
+  renderSlot('op-comp-slot', other.compSlot, false);
+  renderHands(cur);
+  renderHandSizes(cur, other);
+  updateTurnUI();
+}
+
+function renderTraits(elId, traitIds) {
+  const el = document.getElementById(elId);
+  el.innerHTML = traitIds.map(tid => {
+    const t = TRAITS.find(x => x.id === tid);
+    return `<span class="trait-badge">${esc(t ? t.name : tid)}</span>`;
+  }).join('');
+}
+
+function renderSlots(elId, slots, isYou) {
+  const el = document.getElementById(elId);
+  el.innerHTML = slots.map((s, i) => {
+    if (!s) return `<div class="slot empty" data-idx="${i}"></div>`;
+    const t = s.template;
+    return `
+      <div class="slot has-card" data-idx="${i}" style="border-color:#${isYou?'1b4332':'c0392b'}">
+        <div style="text-align:center; font-weight:800; font-size:12px; margin-bottom:2px; color:#${isYou?'1b4332':'c0392b'}">${esc(t.name)}</div>
+        <div class="stats-row">
+          <span class="stat">A${t.attack}</span>
+          <span class="stat">D${t.defense}</span>
+          <span class="stat doses">${s.doses}/${t.defense}</span>
+        </div>
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.slot.has-card').forEach(node => {
+    const idx = parseInt(node.dataset.idx);
+    node.onclick = () => { if (isYou) selectOwnDiseaseSlot(idx); };
+  });
+}
+
+function renderSlot(elId, slot, isYou) {
+  const el = document.getElementById(elId);
+  if (!slot) {
+    el.innerHTML = `<div class="slot empty"></div>`;
+    el.onclick = null;
+    return;
+  }
+  const t = slot.template;
+  el.innerHTML = `
+    <div class="slot has-card" style="border-color:#${isYou?'1b4332':'c0392b'}">
+      <div style="text-align:center; font-weight:800; font-size:12px; margin-bottom:2px; color:#${isYou?'1b4332':'c0392b'}">${esc(t.name)} (C)</div>
+      <div class="stats-row">
+        <span class="stat">A${t.attack}</span>
+        <span class="stat">D${t.defense}</span>
+        <span class="stat doses">${slot.doses}/${t.defense}</span>
+      </div>
+    </div>`;
+}
+
+function renderHands(p) {
+  ['drugs','diseases','augments'].forEach(key => {
+    const el = document.getElementById('you-' + key);
+    if (!el) { console.warn('renderHands: missing element you-' + key); return; }
+    el.innerHTML = p.hands[key].map((card, i) => renderHandCard(key, i, card)).join('');
+    el.querySelectorAll('.card').forEach((node, i) => {
+      node.onclick = () => onHandCardClick(key, i);
+    });
+  });
+}
+
+function renderHandCard(key, i, card) {
+  const t = card.template;
+  const isDrug = key === 'drugs';
+  const cls = isDrug ? 'type-drug' : (key === 'diseases' ? 'type-disease' : 'type-aug');
+  const selected = game.selCard && game.selCard.type === key && game.selCard.index === i ? ' selected' : '';
+  if (isDrug) {
+    return `<div class="card ${cls}${selected}" data-key="${key}" data-i="${i}">
+      <div class="card-name">${esc(t.name)}</div>
+      <div class="stats-row"><span class="stat">${esc(t.cls)}</span></div>
+    </div>`;
+  }
+  if (key === 'diseases') {
+    return `<div class="card ${cls}${selected}" data-key="${key}" data-i="${i}">
+      <div class="card-name">${esc(t.name)}</div>
+      <div class="stats-row"><span class="stat">A${t.attack}</span><span class="stat">D${t.defense}</span></div>
+    </div>`;
+  }
+  return `<div class="card ${cls}${selected}" data-key="${key}" data-i="${i}">
+    <div class="card-name">${esc(t.name)}</div>
+    <div style="font-size:10px; color:#6c5ce7; font-weight:700; margin-top:4px;">${t.kind}</div>
+  </div>`;
+}
+
+function renderHandSizes(p, opp) {
+  document.getElementById('op-hand-sizes').innerHTML = `
+    Drugs ${opp.hands.drugs.length} &bull; Diseases ${opp.hands.diseases.length} &bull; Aug ${opp.hands.augments.length}
+  `;
+}
+
+function updateTurnUI() {
+  const p = game.players[game.turn];
+  document.getElementById('turn-display').textContent = `Turn ${game.turnNumber} — ${p.name}`;
+  document.getElementById('phase-display').textContent = game.phase.charAt(0).toUpperCase() + game.phase.slice(1);
+  document.getElementById('plays-left').textContent = `Plays: ${game.playsLeft}`;
+  const combineBtn = document.getElementById('combine-btn');
+  const opp = game.players[1 - game.turn];
+  const canCombine = game.phase === 'main' && !game.combineUsed && opp.conditions.length >= 4;
+  combineBtn.disabled = !canCombine;
+  document.getElementById('end-turn').disabled = game.phase !== 'main' && game.phase !== 'attack';
+}
+document.getElementById('combine-btn').onclick = () => openCombine();
+
+function selectOwnDiseaseSlot(idx) {
+  if (!game.selCard || game.selCard.type !== 'diseases') return;
+  const p = game.players[game.turn];
+  if (p.slots[idx] !== null) return;
+  playDiseaseFromHand(p, game.selCard.index);
+}
+
+function onHandCardClick(key, i) {
+  const p = game.players[game.turn];
+  const card = p.hands[key][i];
+  if (!card) return;
+  if (game.selCard && game.selCard.type === key && game.selCard.index === i) {
+    game.selCard = null; render(); return;
+  }
+  game.selCard = { type: key, index: i };
+  render();
+
+  if (key === 'drugs') {
+    selectDrug(p, i);
+  } else if (key === 'augments') {
+    // attempt to play augmentation directly if it's a standalone debuff-trait
+    const at = card.template;
+    const other = game.players[1 - game.turn];
+    if (at.kind === 'debuff-trait') {
+      imposeTrait(other, at.trait, p.name);
+      p.hands.augments.splice(i, 1);
+      game.playsLeft--;
+      game.selCard = null;
+      log(`${p.name} played ${at.name}: imposed ${at.trait} on opponent.`, 'me');
+      checkPlaysDone();
+      render();
+    } else {
+      log('Buffs and cures must be played with a drug. Select a drug first.', 'sys');
+    }
+  }
+}
+
+// ---------- UI scaffolding ----------
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// Backdrop clicks close modals
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+  b.onclick = (e) => { if (e.target === b) closeModals(); };
+});
+function closeModals() {
+  document.querySelectorAll('.modal-backdrop').forEach(b => b.classList.remove('open'));
+}
+document.getElementById('drug-cancel').onclick = () => { game.drugPending = null; game.augPending = null; closeModals(); render(); };
+document.getElementById('drug-decline').onclick = () => { game.drugPending = null; game.augPending = null; closeModals(); render(); };
+document.getElementById('drug-play').onclick = confirmPlayDrug;
+document.getElementById('combine-cancel').onclick = () => { game.combineSel = []; closeModals(); render(); };
+
+// End turn / attack
+document.getElementById('end-turn').onclick = () => {
+  if (game.phase === 'main') {
+    game.phase = 'attack';
+    updateTurnUI();
+    log('Attack phase.', 'sys');
+    doAttack();  // resolves attacks then ends the turn
+  } else {
+    endTurn();
+  }
+};
+
+// Start
+document.getElementById('startBtn').onclick = () => {
+  const p1 = document.getElementById('p1name').value.trim() || 'Player 1';
+  const p2 = document.getElementById('p2name').value.trim() || 'Player 2';
+  startGame(p1, p2);
+};
+document.getElementById('restart').onclick = () => {
+  showScreen('start-screen');
+};
+
+// Expose combine to UI via a button in hint area — add a "Combine" button
+// We'll add it dynamically to your area hint container.
+
+</script>
+</body>
+</html>
